@@ -1,0 +1,57 @@
+services:
+  gemma4-server:
+    build:
+      context: .
+      dockerfile: .devops/cpu.Dockerfile
+      target: server
+      args:
+        - UBUNTU_VERSION=24.04
+
+    image: local/llama-turboquant:server-latest
+    container_name: gemma4-server
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      - /home/rounin/.cache/huggingface:/root/.cache/huggingface
+
+    command: >
+      -hf ggml-org/gemma-4-E4B-it-GGUF:Q4_K_M
+      --host 0.0.0.0
+      --port 8080
+      --ctx-size 1536
+      --threads 4
+      --batch-size 256
+      --cache-type-k turbo3
+      --cache-type-v turbo3
+      --parallel 1
+      --cont-batching
+
+    deploy:
+      resources:
+        limits:
+          memory: 7G
+        reservations:
+          memory: 5G
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
